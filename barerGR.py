@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Определяем целевую функцию
-def f(x1, x2):
+def f(x):
+    x1, x2 = x[0], x[1]
     return x1**2 - 3*x1*x2 + 10*x2**2 + 5*x1 - 3*x2
 
 # Определяем градиент функции
@@ -23,38 +24,49 @@ def barrier_function(x, mu):
         return np.inf  # Если ограничения нарушены, возвращаем бесконечность
     # Барьерные члены
     barrier_term = -mu * (np.log(-g1) + (g2 ** 2))
-    return f(x1, x2) + barrier_term
+    return f(x) + barrier_term
 
 # Градиентный метод с барьерной функцией
-def barrier_gradient_descent(initial_point, mu=1.0, beta=0.5, initial_step=0.1, tol=1e-6, max_iter=1000):
+def barrier_gradient_descent(initial_point, initial_step=0.1, tol=1e-6, max_iter=1000, mu=1.0):
     x = np.array(initial_point)
     step_size = initial_step
-    
-    for iteration in range(max_iter):
+    iter_count = 0
+
+    while iter_count < max_iter:
         # Вычисляем градиент барьерной функции
         grad = gradient(x)  # Градиент целевой функции
-        barrier_grad = np.array([2*x[0] - 3*x[1] + 5, -3*x[0] + 20*x[1] - 3])  # Градиент барьерной функции
+        barrier_grad = np.array([2*x[0] - 3*x[1] + 5, -3*x[0] + 20*x[1] - 3])  # Градиент целевой функции
+
+        # Добавляем градиенты штрафной функции
+        if 8 * x[0] - 3 * x[1] - 40 > 0:  # Если g1 нарушено
+            barrier_grad[0] += -mu * (8)  # Добавляем штраф для g1
+        if -2 * x[0] + x[1] + 3 != 0:  # Если g2 нарушено
+            barrier_grad[1] += -mu * (-2)  # Добавляем штраф для g2
+
+        total_grad = grad + barrier_grad  # Суммируем градиенты
+
+        # Оптимизация шага (линейный поиск)
+        step_size = 1.0  # Начальный шаг
+        while barrier_function(x - step_size * total_grad, mu) >= barrier_function(x, mu):
+            step_size *= 0.5  # Уменьшаем шаг, пока не получим улучшение
 
         # Обновляем значение
-        x_new = x - step_size * (grad + barrier_grad)  # Обновляем значение с учетом градиента барьерной функции
+        x_new = x - step_size * total_grad  # Обновляем значение с учетом градиента барьерной функции
         
         # Проверка на сходимость
         if np.linalg.norm(x_new - x) < tol:
             break
         
-        # Проверка, улучшилось ли значение функции
-        if barrier_function(x_new, mu) < barrier_function(x, mu):
-            x = x_new  # Если улучшилось, обновляем x
-        else:
-            step_size *= 0.5  # Если не улучшилось, уменьшаем шаг
+        x = x_new  # Обновляем x
 
         # Уменьшение mu
-        mu *= beta
+        mu *= 0.5
+        iter_count += 1
 
-    return x, f(*x), iteration + 1  # Возвращаем координаты минимума, значение функции и количество итераций
+    return x, f(x), iter_count  # Возвращаем координаты минимума, значение функции и количество итераций
 
 # Начальная точка
-x0 = np.array([2, 1])
+x0 = np.array([2.0, 1.0])
 
 # Запуск градиентного спуска с барьерной функцией
 min_point, min_value, iterations = barrier_gradient_descent(x0)
@@ -68,7 +80,7 @@ print(f"Количество итераций: {iterations}")
 x1 = np.linspace(-2, 4, 400)
 x2 = np.linspace(-2, 4, 400)
 X1, X2 = np.meshgrid(x1, x2)
-Z = f(X1, X2)
+Z = f(np.array([X1, X2]))
 
 # Создание графика
 plt.figure(figsize=(10, 6))
